@@ -1,0 +1,4 @@
+Building DAG of jobs...
+MissingInputException in line 427 of /mnt/diversity/jiaqi/hmm/DenAdmix_Sim_git/Snakefile:
+Missing input files for rule hmmix_input_concat_missing:
+sim/D_90/hmmix_infile/ea.ind0.in
