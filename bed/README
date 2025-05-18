@@ -1,11 +1,11 @@
+
 #included individual bed contains records of Denisovna segments identified:
 #1. by admixfrog, physical length > 19999 and map length >0.0249cM
 #2. by hmmix if any, physical length >19999 and map length >0.0249, further requiring: 
 #2.1 number of derived alleles matching Denisovan larger > number of derived alleles matching Neanderthals
 #2.2 number of derived alleles matching Denisovan >=4
 #2.3 match rate is highest for Denisovan(any) than any Neanderthals
-#In most analysis, I used only segments longer than 40000bp and 0.05cM
-
+#In All analysis, I used only segments longer than 40000bp and 0.05cM. 
 
 #format for candidate segments: chr, pos_start, pos_end, pos_length, map_start, map_end, map_length, method(frog or hmm)
 #for candidate tagged as hmm, the following 5 columns:
