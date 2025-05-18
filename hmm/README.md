@@ -6,7 +6,7 @@ column1: chr<br />
 column2: pos<br />  c
 column3: ancestral\_allele phase(0/1) <br /> 
 column4: phase(0/1), for unphased data should be all 0 <br /> 
-column5: num\_of\_derived\_alleles, not used currently <br /> 
+column5: num\_of\_derived\_alleles, not used currently, so can be set to all 1 <br /> 
 column6: Derived\_allele, e.g. A for phased, AC for unphased <br /> 
 
 generate maskfile(.bed) from coverage file, including 3 columns: <br />
