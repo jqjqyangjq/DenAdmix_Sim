@@ -33,17 +33,15 @@ def demo_archaic_introgression(
     n_ea = 5054
     n_out_of_afr = 781
     n_afr = 27122
-    n_archaic_d = 1500
-    n_archaic_n = 1000
     pop_params = {
-        "nea_out":  {"id": 0, "Ne": n_archaic_n, "Init": True},
-        "nea": {"id": 1, "Ne": n_archaic_n, "Init": True },
-        "Intro_nea" : {"id": 2, "Ne": n_archaic_n, "Init": True},
-        "den3" : {"id": 3,"Ne": n_archaic_d, "Init": True},
-        "den25": {"id": 4, "Ne": n_archaic_d, "Init": True},
+        "nea_out":  {"id": 0, "Ne": 1943, "Init": True},
+        "nea": {"id": 1, "Ne": 1943, "Init": True },
+        "Intro_nea" : {"id": 2, "Ne": 1943, "Init": True},
+        "den3" : {"id": 3,"Ne": 1826, "Init": True},
+        "den25": {"id": 4, "Ne": 1826, "Init": True},
         "ea": {"id": 5, "Ne": n_ea, "Init": True},
         "afr": {"id": 6, "Ne": n_afr, "Init": True },
-        "Intro_den_S" : {"id": 7, "Ne": n_archaic_d, "Init": True},
+        "Intro_den_S" : {"id": 7, "Ne": 1826, "Init": True},
         "Archaic": {"id": 8, "Ne": 10000, "Init": False},
         "Ancestral": {"id": 9, "Ne": 23275, "Init": False}
     }

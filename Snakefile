@@ -68,11 +68,17 @@ missing_mask = "mask_missing.chr1_20" #chr1 mask from map35_100 + 1kg accessibil
 
 rule run_sim:
     priority: 1
+    input:
+        #rec=get_rec_true
+        rec_file = "/mnt/diversity/jiaqi/hmm/hmm_extend_sim/map/100M_r_map_chr1.txt"
+    priority : 1
     output:
         ts="sim/D_{divergence}/chrom_{chrom}_ts.trees",
         target_sample_list="sim/D_{divergence}/chrom_{chrom}_list.txt",
+        #mut_rates_file = "sim/D_{divergence}/chrom_{chrom}_mut_rates.txt"
     run:
-        random_seed_sim = int(wildcards.chrom) + 419
+        random_seed_sim = int(wildcards.chrom) + 1998401
+        r_rate_map = msprime.RateMap.read_hapmap(input.rec_file)
         sample_list = {
               "nea_out": {"t_sample": [120], "ind": 1, "group": "NEA"},
               "nea":  {"t_sample": [60,80], "ind": 1, "group": "NEA"},
@@ -93,7 +99,9 @@ rule run_sim:
         random_seed=random_seed_sim,
         samples=samples,
         sequence_length=seq_len,
-        recombination_rate=1.25e-8,
+        #recombination_rate = r_rate_map, varing
+        recombination_rate=1.25e-8, # constant,
+        #recombination_rate=recomb_rate,
         demography=Demography,
         record_migrations=True,
         ploidy =  2)   ##################
@@ -144,6 +152,12 @@ rule merge_true_segments_S:
             nea["source"] = "nea"
             seg_merged = pd.concat([seg_merged, nea])
         seg_merged.to_csv('{}'.format(output.seg_all_chr),index=False)
+        
+        
+rule get_all_bed:
+    input:
+        expand("sim/D_{divergence}/chrom_{chrom}_den_S.bed", chrom = chr, divergence = divergence),
+        expand("sim/D_{divergence}/chrom_{chrom}_nea_S.bed", chrom = chr, divergence = divergence)
 rule get_snp_table:
     input:
         ts="sim/D_{divergence}/chrom_{chrom}_ts.trees",
@@ -244,8 +258,7 @@ rule all_ref_missing:
     
 rule concat_all_ref:
     input:
-        expand("sim/D_{divergence}/chrAll_ref{ref_type}.xz", chrom = chr,ref_type = ['1', '2', '3','4','5'], divergence = divergence),
-        expand("sim/D_{divergence}/chrAll_ref{ref_type}.missing.xz", chrom = chr,ref_type = ['1', '2', '3','4','5'], divergence = divergence),
+        expand("sim/D_{divergence}/chrAll_ref{ref_type}.missing.xz", chrom = chr,ref_type = ['2', '3','5'], divergence = divergence),
         
 
 rule infile:
@@ -280,6 +293,10 @@ rule concat_infile_missing:
         shell(s)
         s1 = "xz sim/D_{wildcards.divergence}/infile_missing/{wildcards.pop}.ind_{wildcards.ind}.chrAll.in{wildcards.ref_type}"
         shell(s1)        
+rule concat_infile_missing_all:     
+    input:
+        expand("sim/D_{divergence}/infile_missing/{pop}.ind_{ind}.chrAll.in{ref_type}.xz", divergence = divergence, pop = ["ea"], ind=list(range(0,15)), ref_type = ['2','3','5']),
+
 
 rule admixfrog_call_missing:
     input:
@@ -298,6 +315,14 @@ rule admixfrog_call_missing:
         s += " --run-penalty 0.2 --n-post-replicates 200 --dont-est-contamination --gt-mode"
         shell(s)
         
+# rule admixfrog_call_all:
+#     input:
+#         nead3 = expand("sim/D_{divergence}/admixfrog_call/{asc}/{pop}.ind_{ind}.rle.xz", pop = ["ea"], ind=list(range(0,15)), divergence = divergence, asc = ['4','5','6'])
+        
+# rule all_admixfrog_infile:
+#     input:
+#         in1_missing = expand("sim/D_{divergence}/infile_missing/{pop}.ind_{ind}.chrAll.in{ref_type}.xz", pop = ["ea",], ind=list(range(0,15)), ref_type = ['1','2','3','4','5'], divergence = divergence),
+#         in1 = expand("sim/D_{divergence}/infile/{pop}.ind_{ind}.chrAll.in{ref_type}.xz", pop = ["ea"], ind=list(range(0,15)), ref_type = ['1','2','3','4','5'], divergence = divergence),
 rule den_prop:
     input:
         rle =  "sim/D_{divergence}/admixfrog_call_missing/{ref_type}/{pop}.ind_{ind}.res.xz"
@@ -312,6 +337,7 @@ rule den_prop:
 
 rule all_admixfrog_call:
     input:
+        #call = expand("sim/D_{divergence}/admixfrog_call/{ref_type}/{pop}.ind_{ind}.rle.xz", pop = ["ea"], ind=list(range(0,15)), ref_type = ['1','2','3','4','5'], divergence = divergence),
         call_missing = expand("sim/D_{divergence}/admixfrog_call_missing/{ref_type}/{pop}.ind_{ind}.rle.xz", pop = ["ea"], ind=list(range(0,15)), ref_type = ['1','2','3','4','5'], divergence = divergence),
         
 rule rerun_all_admixfrog_call:
@@ -328,6 +354,28 @@ rule anno_missing_frog_call:
         rle['map_len'] = 1.25e-6 * rle['pos_len'].round(4)
         print(rle)
         rle.to_csv(output.call_missing, index=False)
+# rule admixfrog_bed:
+#     input:
+#         rle_nea_den = "sim/D_{divergence}/admixfrog_call/{pop}.ind_{ind}.rle.xz",
+#         rle_archaic = "sim/D_{divergence}/admixfrog_call/{pop}.ind_{ind}.Archaic.rle.xz",
+#         rle_den = "sim/D_{divergence}/admixfrog_call/Den.{pop}.ind_{ind}.rle.xz"
+#     output:
+#         bed_nea_den = "sim/D_{divergence}/admixfrog_call/{pop}.ind_{ind}.nea_den.bed",
+#         bed_archaic = "sim/D_{divergence}/admixfrog_call/{pop}.ind_{ind}.Archaic.bed",
+#         bed_den = "sim/D_{divergence}/admixfrog_call/Den.{pop}.ind_{ind}.den.bed"
+#     run:
+#         s = "xzcat {input.rle_nea_den} | grep -v 'afr' | grep 'state' | column -t -s , | awk -v OFS='\t' '{{print $1,$8,$11,$5}}' > {output.bed_nea_den} "
+#         shell(s) 
+#         ss = "xzcat {input.rle_archaic} | grep -v 'afr' | grep 'state' | column -t -s , | awk -v OFS='\t' '{{print $1,$8,$11,$5}}' > {output.bed_archaic} "
+#         shell(ss)
+#         sss = "xzcat {input.rle_den} | grep -v 'afr' | grep 'state' | column -t -s , | awk -v OFS='\t' '{{print $1,$8,$11,$5}}' > {output.bed_den} "
+#         shell(sss)
+
+# rule all_bed:
+#     input:
+#         bed_nea_den = expand("sim/D_{divergence}/admixfrog_call/{pop}.ind_{ind}.nea_den.bed", pop = ["ea"], ind=list(range(0,45))),
+#         bed_archaic = expand("sim/D_{divergence}/admixfrog_call/{pop}.ind_{ind}.Archaic.bed", pop = ['ea'], ind=list(range(0,45))),
+#         bed_den = expand("sim/D_{divergence}/admixfrog_call/Den.{pop}.ind_{ind}.den.bed", pop = ['ea'], ind=list(range(0,45)))
 
 rule make_hmmix_input:
     input:
@@ -339,6 +387,16 @@ rule make_hmmix_input:
         ind = int(wildcards.ind),
         vcf = f"{input.data}", 
         out = f"{output.hmmix_input}")
+# rule make_hmmix_input_hap:
+#     input:
+#         data="sim/D_{divergence}/chrom_{chr}.snps.tsv.gz"
+#     output:
+#         hmmix_input = temp("sim/D_{divergence}/hmmix_infile/{pop}_ind{ind}.chr{chr}.in.hap")
+#     run:
+#         make_infile_hmmix12(pop=wildcards.pop, 
+#         ind = int(wildcards.ind),
+#         vcf = f"{input.data}", 
+#         out = f"{output.hmmix_input}")        
         
 rule hmmix_input_concat:
     input:
@@ -359,11 +417,38 @@ rule hmmix_input_concat_missing:
         s += missing_mask
         s += " | awk -v OFS='\t' '{{print $1,$3}}' > {output.hmmix_input}"
         shell(s)
-            
+rule hmmix_input_concat_missing_all:
+    input:
+        expand("sim/D_{divergence}/hmmix_infile_missing/{pop}.ind{ind}.in", pop = ["ea"], ind=list(range(0,15)), chr = chr, divergence = divergence)
+
+    
+# rule hmmix_input_concat_hap:
+#     input:
+#         hmmix_input = expand("sim/D_{{divergence}}/hmmix_infile/{{pop}}_ind{{ind}}.chr{chr}.in.hap", chr = chr)
+#     output:
+#         hmmix_input = "sim/D_{divergence}/hmmix_infile/{pop}.ind{ind}.in.hap"
+#     run:
+#         s = "for i in {{1..22}}; do cat sim/D_{wildcards.divergence}/hmmix_infile/{wildcards.pop}_ind{wildcards.ind}.chr$i.in.hap >>{output.hmmix_input}; done"
+#         shell(s)
+        
 rule all_hmmix_input:
     input:
+#        nomissing = expand("sim/D_{divergence}/hmmix_infile/{pop}.ind{ind}.in", pop = ["ea"], ind=list(range(0,15)), chr = chr, divergence = divergence),
         missing = expand("sim/D_{divergence}/hmmix_infile_missing/{pop}.ind{ind}.in", pop = ["ea"], ind=list(range(0,15)), chr = chr, divergence = divergence)
 
+
+
+# rule hmmix_call:
+#     input:
+#         infile = "sim/D_{divergence}/hmmix_infile/{pop}.ind{ind}.in"
+#     output:
+#         param = "sim/D_{divergence}/hmmix_outfile/{pop}.ind{ind}.posterior.called"
+#     wildcard_constraints:
+#         ind = "|".join([str(i) for i in list(range(0,100))])
+#     run:
+#         s = "hmm/main.py gt_mode -data_type modern -count_file {input.infile} -mask_file mask_no_missing.chr1_20 "
+#         s += " -out sim/D_{wildcards.divergence}/hmmix_outfile/{wildcards.pop}.ind{wildcards.ind}"
+#         shell(s)
 rule hmmix_call_missing:
     input:
         infile = "sim/D_{divergence}/hmmix_infile_missing/{pop}.ind{ind}.in"
@@ -376,6 +461,33 @@ rule hmmix_call_missing:
         s+= missing_mask
         s += " -out sim/D_{wildcards.divergence}/hmmix_outfile_missing/{wildcards.pop}.ind{wildcards.ind}"
         shell(s)
+# rule hmmix_call_hap:
+#     input:
+#         infile = "sim/D_{divergence}/hmmix_infile/{pop}.ind{ind}.in.hap"
+#     output:
+#         param = "sim/D_{divergence}/hmmix_outfile/{pop}.ind{ind}.hap.posterior.called"
+#     wildcard_constraints:
+#         ind = "|".join([str(i) for i in list(range(0,100))])
+#     run:
+#         s = "hmm/main.py gt_mode -data_type modern -count_file {input.infile} -mask_file mask_no_missing.chr1_20.hap "
+#         s += " -out sim/D_{wildcards.divergence}/hmmix_outfile/{wildcards.pop}.ind{wildcards.ind}.hap"
+#         shell(s)
+
+# rule hmmix_anno:
+#     input:
+#         called = "sim/D_{divergence}/hmmix_outfile/{pop}.ind{ind}.posterior.called",
+#         infile = "sim/D_{divergence}/hmmix_infile/{pop}.ind{ind}.in",
+#         rec = "constant_rec.chr1_20"
+#     wildcard_constraints:
+#         ind = "|".join([str(i) for i in list(range(0,100))])
+#     output:
+#         anno_file = "sim/D_{divergence}/hmmix_outfile/{pop}.ind{ind}.posterior.called.anno"
+#     run:
+#         with open(output.anno_file, 'w') as f:
+#             print('chrom','start','end','length', 'map_len', 'nea_out', 'nea_1', 'nea_2', 'den3', 'den25', 'source1', 'source2',
+#                   sep = '\t', file = f)
+#         for i in chr:
+#             anno(input.called, input.infile, f"sim/D_{wildcards.divergence}/chrom_{i}.snps.tsv.gz", output.anno_file, i, rec = input.rec)
             
 rule hmmix_anno_missing:
     input:
@@ -392,6 +504,7 @@ rule hmmix_anno_missing:
                   sep = '\t', file = f)
         for i in chr:
             anno(input.called, input.infile, f"sim/D_{wildcards.divergence}/chrom_{i}.snps.tsv.gz", output.anno_file, i, rec = input.rec)
+
 
 rule hmmix_anno_sep_missing:
     input:
@@ -426,12 +539,15 @@ rule hmmix_anno_sep_missing:
 #8. minimum map_len filter
 #9. minimum match filter
 
+
 rule sensi_missing:
     input:
         hmm_den_match = "sim/D_{divergence}/hmmix_outfile_missing/ea.ind{ind}.posterior.called.anno.den",
         hmm_nea_match = "sim/D_{divergence}/hmmix_outfile_missing/ea.ind{ind}.posterior.called.anno.nea",
         frog_call_AA = "sim/D_{divergence}/admixfrog_call_missing/3/ea.ind_{ind}.rle.anno.xz",
+        #frog_call_d3 = "sim/D_{divergence}/admixfrog_call_missing/1/ea.ind_{ind}.rle.xz",
         frog_call_den = "sim/D_{divergence}/admixfrog_call_missing/2/ea.ind_{ind}.rle.anno.xz",
+        #frog_call_d3_AA = "sim/D_{divergence}/admixfrog_call_missing/4/ea.ind_{ind}.rle.xz",
         frog_call_den_AA = "sim/D_{divergence}/admixfrog_call_missing/5/ea.ind_{ind}.rle.anno.xz",
         true_call = "sim/D_{divergence}/chrom_true_introgressed_all.bed.xz"
     output:
@@ -443,8 +559,12 @@ rule sensi_missing:
     run:
         s = "xzcat {input.frog_call_AA} | column -t -s , | awk -v i={wildcards.ind} -v OFS='\t' '($6==\"state\"&&$5!=\"afr\"){{print $1,$8,$11,$14,$5,\"AA\",i}}' >>{output.out1} "
         shell(s)
+        #s = "xzcat {input.frog_call_d3} | column -t -s , | awk -v i={wildcards.ind} -v OFS='\t' '($6==\"state\"&&$5!=\"afr\"){{print $1,$8,$11,$14,$5,\"d3\",i}}' >>{output.out1} "
+        #shell(s)
         s = "xzcat {input.frog_call_den} | column -t -s , | awk -v i={wildcards.ind} -v OFS='\t' '($6==\"state\"&&$5!=\"afr\"){{print $1,$8,$11,$14,$5,\"den\",i}}' >>{output.out1}"
         shell(s)
+        #s = "xzcat {input.frog_call_d3_AA} | column -t -s , | awk -v i={wildcards.ind} -v OFS='\t' '($6==\"state\"&&$5!=\"afr\"){{print $1,$8,$11,$14,$5,\"d3_AA\",i}}' >>{output.out1}"
+        #shell(s)
         s = "xzcat {input.frog_call_den_AA} | column -t -s , | awk -v i={wildcards.ind} -v OFS='\t' '($6==\"state\"&&$5!=\"afr\"){{print $1,$8,$11,$14,$5,\"den_AA\",i}}' >>{output.out1}"
         shell(s)
         
@@ -577,11 +697,17 @@ rule sensi_missing:
 rule merge_call:
     input:
         expand("sim/D_{{divergence}}/hmmix_outfile_missing/ea.ind{ind}.posterior.called.anno.{archaic}", archaic = ['nea','den'], ind = list(range(0,15))),
+        #expand("sim/D_{{divergence}}/hmmix_outfile/ea.ind{ind}.posterior.called.anno.{archaic}", archaic = ['nea','den'], ind = list(range(0,15))),
+        #frog_call1 = expand("sim/D_{{divergence}}/sum_stats/ea.ind{ind}.frog_call", ind = list(range(0,15))),
         frog_call2 = expand("sim/D_{{divergence}}/sum_stats_missing/ea.ind{ind}.frog_call", ind = list(range(0,15))),
+        #hmmix_call1 = expand("sim/D_{{divergence}}/sum_stats/ea.ind{ind}.sums", ind = list(range(0,15))),
         hmmix_call2 = expand("sim/D_{{divergence}}/sum_stats_missing/ea.ind{ind}.sums", ind = list(range(0,15)))
     output:
+        #frog_call1 = "sim/D_{divergence}/sum_stats/ea.frog_call.{phase}",
         frog_call2 = "sim/D_{divergence}/sum_stats_missing/ea.frog_call.{phase}",
+        #hmm_call1 = "sim/D_{divergence}/sum_stats/ea.posterior.called.anno.{phase}",
         hmm_call2 = "sim/D_{divergence}/sum_stats_missing/ea.posterior.called.anno.{phase}",
+        #true_call1 = "sim/D_{divergence}/sum_stats/ea.true.bed.{phase}",
         true_call2 = "sim/D_{divergence}/sum_stats_missing/ea.true.bed.{phase}",
         
     run:
@@ -593,7 +719,8 @@ rule merge_call:
             l = "for i in {{10..14}};"
         else:
             print("wrong wildcards phase")
-                s = ""
+
+        s = ""
         s += l
         s += "do cat sim/D_{wildcards.divergence}/sum_stats_missing/ea.ind$i.frog_call >> {output.frog_call2}; done"
         shell(s)
