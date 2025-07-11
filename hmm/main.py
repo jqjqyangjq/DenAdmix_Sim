@@ -136,7 +136,7 @@ def main():
     if args.mode == "call":
         print("calling fragments using posterior")
         if args.call_type == "Penalty":
-            get_runs(args.posterior, args.penalty)
+            get_runs(args.posterior, float(args.penalty))
             print("call finished")
         elif args.call_type == "Average":
             print("Using averagel posteriors" + f"output is {args.call_out}")
