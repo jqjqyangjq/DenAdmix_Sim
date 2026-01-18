@@ -251,7 +251,7 @@ def anno(gt_file, called, vcf, out, samples_input, group1 = None, group2 = None,
                             print(call_chr.chrom[i],call_chr.start[i]*window_size,call_chr.end[i]*window_size+window_size, (call_chr.end[i]-call_chr.start[i]+1)*window_size, 
                             "\t".join(M_), g1_match, g2_match, shared_match, sample1, sample2, sep = '\t', file = f)
                             
-def anno_strict(gt_file, called, vcf, out, samples_input, group1 = None, group2 = None, map_file = None, map = "AA_Map", window_size = 1000,
+def anno_strict(gt_file, called, vcf, out, samples_input, group1, group2, map_file = None, map = "AA_Map", window_size = 1000,
 phased = False):  # return number of variants
     called_ = pd.read_csv(called, dtype={'chrom':str, 'phase':int,'start':int, 'end':int})
     called_ = called_.sort_values(by = ['chrom', 'start']).reset_index(drop=True)
@@ -480,3 +480,110 @@ phased = False):  # return number of variants
                         "\t".join(M_), g1_match, g2_match, shared_match, sample1, sample2, sep = '\t', file = f)
                         print(call_chr.chrom[i],pos_start_strict-1,pos_end_strict,start_gen, end_gen, gen_len,
                         "\t".join(M_), g1_match, g2_match, shared_match, sample1, sample2, sep = '\t')
+
+
+
+def add_info_column(df, gt):
+    """
+    For each row (chr, pos1, pos2), collect gt[chr][pos] where pos1 < pos <= pos2,
+    and set df['info'] to ','.join(f'{pos}{gt}' for each hit).
+
+    Assumes df is sorted by ['chr','pos1','pos2'] and intervals are non-overlapping.
+    Assumes gt[chr] keys are sorted ascending (or at least iterable sorted).
+    """
+    info = [""] * len(df)
+
+    for chrom, sub in df.groupby("chrom", sort=False):
+        pos_dict = gt.get(chrom)
+        if not pos_dict:
+            for idx in sub.index:
+                info[idx] = ""
+            continue
+
+        # sorted positions for this chromosome
+        positions = list(pos_dict.keys())
+        # if not guaranteed sorted, do: positions = sorted(pos_dict)
+
+        j = 0  # pointer into positions
+
+        for idx, pos1, pos2 in zip(sub.index, sub["start"], sub["end"]):
+            # advance to first position strictly greater than pos1
+            while j < len(positions) and positions[j] <= pos1:
+                j += 1
+
+            k = j
+            # advance while within (pos1, pos2]
+            while k < len(positions) and positions[k] <= pos2:
+                k += 1
+
+            # build "pos+gt" strings and join
+            info[idx] = ",".join([f"{p}:{pos_dict[p]}" for p in positions[j:k]])
+
+            # intervals don't overlap, so we can start next interval from k
+            j = k
+
+    df = df.copy()
+    df["info"] = info
+    df = df[['chrom','start','end','info']]
+    return df
+
+
+def anno_per_sites(gt_file_temp, annotated, vcf, annotated_per_site, samples_input, group1, group2):
+    chr_order = ['chr1','1','chr2','2','chr3','3','chr4','4',
+            'chr5','5','chr6','6','chr7','7','chr8','8',
+            'chr9','9','chr10','10','chr11','11','chr12','12',
+            'chr13','13','chr14','14','chr15','15','chr16','16',
+            'chr17','17','chr18','18','chr19','19','chr20','20',
+            'chr21','21','chr22','22','chrX','X']
+    snp = defaultdict(lambda:defaultdict(list))
+    with open(gt_file_temp, 'r') as f:
+        for line in f:
+            chr, pos, gt, *_ = line.strip().split()
+            snp[chr][pos] = gt
+    snp_anno = defaultdict(lambda:defaultdict(lambda: defaultdict(int)))
+    snp_anno_ = defaultdict(lambda:defaultdict())
+    samples_list = ",".join(samples_input.split(","))
+    samples = samples_input.split(",")
+    gp1 = group1.split(",")
+    gp2 = group2.split(",")
+    vcfs = vcf.split(",")
+    print("loading vcfs for comparision per site")
+    for vcf_ in vcfs:
+        for line in os.popen(f"bcftools view -R {gt_file_temp} -s {samples_list} {vcf_}"):
+            if not line.startswith("#"):
+                chr, pos = line.strip().split()[0:2]
+                ref = line.strip().split()[3]
+                alt = line.strip().split()[4]
+                for ind, gt in enumerate(line.strip().split()[9:]):  #loop through all archaic individuals   #loop through per position
+                    gt = gt.split(':')[0]
+                    if gt == "./.":
+                        continue
+                    if gt == "0/0":
+                        gt = ref+ref
+                    elif gt == "1/1":
+                        gt = alt+alt
+                    elif gt == "0/1":
+                        gt = ref+alt
+                    elif gt == "1/2":
+                        gt = alt.split(",")[0]+alt.split(",")[1]
+                    if (snp[chr][pos] == gt[0]) or (snp[chr][pos] == gt[1]):
+                        snp_anno[chr][pos][samples[ind]+"_match"] =1                     
+                    else:
+                        snp_anno[chr][pos][samples[ind]+"_mismatch"] =1
+                g1 = max(snp_anno[chr][pos][gp1[ind_] + "_match"] for ind_ in range(len(gp1)))  # 0 or 1
+                g2 = max(snp_anno[chr][pos][gp2[ind_] + "_match"] for ind_ in range(len(gp2)))  # 0 or 1
+                if g1 == 0 and g2 ==0:
+                    snp_anno_[chr][int(pos)] = "Non"
+                elif g1 > 0 and g2 ==0:
+                    snp_anno_[chr][int(pos)] = "g1"
+                elif g1 ==0 and g2 >0:
+                    snp_anno_[chr][int(pos)] = "g2"
+                elif g1 >0 and g2 >0:
+                    snp_anno_[chr][int(pos)] = "Shared"
+    annotated_df = pd.read_csv(annotated, dtype={'chrom':str, 'start':int, 'end':int}, sep = r'\s+')
+    annotated_df["chrom"] = pd.Categorical(annotated_df["chrom"], categories=chr_order, ordered=True)
+    annotated_df = annotated_df.sort_values(by = ['chrom', 'start']).reset_index(drop=True)
+    
+    annotated_df_ = add_info_column(annotated_df, snp_anno_)
+    annotated_df_.to_csv(annotated_per_site, index = False, sep = '\t')
+    

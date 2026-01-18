@@ -2,7 +2,7 @@
 import argparse
 import numpy as np
 from helper_f import load_observations_gt
-from anno import anno, anno_strict
+from anno import anno, anno_strict, anno_per_sites
 from hmm import write_HMM_to_file, read_HMM_parameters_from_file
 import pandas as pd
 from call import Call_LS, get_runs
@@ -68,6 +68,14 @@ def main():
     anno_subparser.add_argument("-count_file", metavar='', help = "observation", type = str, default = None)
     anno_subparser.add_argument("-phased", action='store_true', help = "whether phased or unphased", default= False)
     anno_subparser.add_argument("-strict", action='store_true', help = "whether anno and refine in a strict way", default= False)
+    anno_per_site = subparser.add_parser('anno_per_site', help='annotate per site')
+    anno_per_site.add_argument("-gt_file", metavar='', help = "genotype file, e.g. could be generated previously .temp.0", type = str, required = True)
+    anno_per_site.add_argument("-annotated", metavar='', help = "annotated file generated previously", type = str, required = True)
+    anno_per_site.add_argument("-vcf", metavar='', help = "archaic vcf files", type = str, required = True)
+    anno_per_site.add_argument("-annotated_per_site", metavar='', help = "output file for per site annotation", type = str, required = True)
+    anno_per_site.add_argument("-sample", metavar='', help = "archaic individuals used for annotation", type = str, default = "")
+    anno_per_site.add_argument("-group1", metavar='', help = "archaic individuals by group used for annotation, e.g. Neanderthals", type = str, default = None)
+    anno_per_site.add_argument("-group2", metavar='', help = "archaic individuals by group used for annotation, e.g. Denisovans", type = str, default = None)
     args = parser.parse_args()
 
     if args.mode == 'gt_mode':   # same as Larits. But starts with the first callable position.
@@ -174,5 +182,18 @@ def main():
                 map = args.map,
                 window_size = args.window_size,
                 phased = args.phased)
+    if args.mode == "anno_per_site":
+        print(f"annotating per site using observation file {args.gt_file} and annotated file {args.annotated}")
+        print(f"using archaic vcf {args.vcf}")
+        print(f"using archaic individuals {args.sample}")
+        print(f"sample names {args.sample}")
+        print(f"out file {args.annotated_per_site}")
+        anno_per_sites(gt_file_temp = args.gt_file,
+                       annotated = args.annotated,
+                       vcf = args.vcf,
+                       annotated_per_site = args.annotated_per_site,
+                       samples_input = args.sample,
+                       group1 = args.group1,
+                       group2 = args.group2)
 if __name__ == "__main__":
     main()
